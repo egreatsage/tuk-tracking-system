@@ -1,12 +1,18 @@
 // prisma/seed.js
-require('dotenv').config(); // Load environment variables
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
+const { Pool } = require('pg');
+const { PrismaPg } = require('@prisma/adapter-pg');
 const bcrypt = require('bcryptjs');
 
-// Prisma v7 requires passing the connection URL explicitly
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
-});
+// 1. Initialize a connection pool using the pg driver
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// 2. Create the Prisma adapter using that pool
+const adapter = new PrismaPg(pool);
+
+// 3. Pass the adapter to the PrismaClient constructor
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('Seeding database...');
@@ -37,5 +43,7 @@ main()
     process.exit(1);
   })
   .finally(async () => {
+    // Close the client and the pool
     await prisma.$disconnect();
+    await pool.end();
   });
