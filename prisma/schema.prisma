@@ -1,0 +1,237 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --- ENUMS ---
+enum Role {
+  SUPERADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum AssessmentType {
+  CAT
+  ASSIGNMENT
+  EXAM
+}
+
+// --- CORE AUTH & USERS ---
+model User {
+  id             String          @id @default(cuid())
+  name           String
+  email          String          @unique
+  hashedPassword String?         // Optional if using OAuth, but needed for email/password
+  role           Role            @default(STUDENT)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Profile Relations
+  studentProfile StudentProfile?
+  teacherProfile TeacherProfile?
+  parentProfile  ParentProfile?
+  
+  notifications  Notification[]
+}
+
+// --- ROLE PROFILES ---
+model StudentProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  regNumber       String   @unique
+  year            Int
+  profilePhotoUrl String?
+  
+  courseId        String
+  course          Course   @relation(fields: [courseId], references: [id])
+
+  parents         ParentStudent[]
+  enrollments     UnitEnrollment[]
+  attendances     Attendance[]
+  submissions     Submission[]
+}
+
+model TeacherProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  staffNumber    String   @unique
+  department     String
+  specialisation String?
+
+  units          Unit[]
+  lectures       Lecture[]
+  timetableSlots TimetableSlot[]
+}
+
+model ParentProfile {
+  id       String   @id @default(cuid())
+  userId   String   @unique
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  children ParentStudent[]
+}
+
+// Join table for Parent M--M Student
+model ParentStudent {
+  parentId  String
+  parent    ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([parentId, studentId])
+}
+
+// --- ACADEMICS ---
+model Course {
+  id             String           @id @default(cuid())
+  name           String           @unique // e.g., 'Diploma in IT'
+  
+  units          Unit[]
+  students       StudentProfile[]
+  timetableSlots TimetableSlot[]
+}
+
+model Unit {
+  id             String           @id @default(cuid())
+  code           String           @unique
+  name           String
+  
+  courseId       String
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  teacherId      String?
+  teacher        TeacherProfile?  @relation(fields: [teacherId], references: [id])
+
+  enrollments    UnitEnrollment[]
+  lectures       Lecture[]
+  timetableSlots TimetableSlot[]
+  assessments    Assessment[]
+}
+
+// Join table for Student M--M Unit
+model UnitEnrollment {
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  unitId    String
+  unit      Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, unitId])
+}
+
+// --- ATTENDANCE & TIMETABLE ---
+model Lecture {
+  id          String         @id @default(cuid())
+  date        DateTime
+  time        String         
+  venue       String
+  
+  unitId      String
+  unit        Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  
+  teacherId   String
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id])
+
+  attendances Attendance[]
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  status    AttendanceStatus @default(ABSENT)
+  
+  lectureId String
+  lecture   Lecture          @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  
+  studentId String
+  student   StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lectureId, studentId]) // A student can only have one attendance record per lecture
+}
+
+model TimetableSlot {
+  id        String         @id @default(cuid())
+  day       String         // e.g., "Monday"
+  startTime String         // e.g., "08:00"
+  endTime   String         // e.g., "10:00"
+  venue     String
+
+  courseId  String
+  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  unitId    String
+  unit      Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+// --- ASSESSMENTS & RESULTS ---
+model Assessment {
+  id           String         @id @default(cuid())
+  type         AssessmentType
+  title        String
+  instructions String?
+  fileUrl      String?        // Cloudinary URL
+  dueDate      DateTime
+  maxMarks     Float
+
+  unitId       String
+  unit         Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  submissions  Submission[]
+}
+
+model Submission {
+  id           String         @id @default(cuid())
+  fileUrl      String?        // Cloudinary URL for student upload
+  textAnswer   String?        // In case of text submission
+  submittedAt  DateTime       @default(now())
+  marks        Float?         // Null means not yet graded
+  feedback     String?
+
+  assessmentId String
+  assessment   Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  studentId    String
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, studentId])
+}
+
+// --- SYSTEM UTILS ---
+model Notification {
+  id        String   @id @default(cuid())
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model InviteToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String?  // Optional: if pre-assigned to an email
+  role      Role     // The role they will get upon registering
+  expires   DateTime
+  createdAt DateTime @default(now())
+}
