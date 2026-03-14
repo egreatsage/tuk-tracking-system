@@ -1,21 +1,21 @@
-import { Inter } from "next/font/google";
-import "./globals.css";
+// src/app/layout.js
 import { Toaster } from "react-hot-toast";
-
-const inter = Inter({ subsets: ["latin"] });
+import { Providers } from "@/components/Providers";
+import "./globals.css";
 
 export const metadata = {
-  title: "TUK Student Tracking System",
-  description: "Comprehensive student management platform",
+  title: "TUK Tracking System",
+  description: "Comprehensive Student Tracking System",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        {/* The Toaster handles our success/error popups */}
-        <Toaster position="top-center" />
-        {children}
+      <body className="bg-gray-50 text-gray-900">
+        <Providers>
+          {children}
+          <Toaster position="top-right" />
+        </Providers>
       </body>
     </html>
   );
