@@ -13,7 +13,10 @@ export default function SuperAdminDashboard() {
       <Link href="/superadmin/units" className="mt-6 inline-block bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium transition-colors ml-4">
         Manage Units
       </Link>
+      <Link href="/superadmin/teachers" className="mt-6 inline-block bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium transition-colors ml-4">
+        Manage Teachers
+      </Link>
     </div>
   );
-}
- 
+} 
+   
