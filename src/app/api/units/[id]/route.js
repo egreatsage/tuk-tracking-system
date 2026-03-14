@@ -1,40 +1,33 @@
-// src/app/api/units/[id]/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export async function PUT(request, { params }) {
   try {
-    const { id } = await params;
+    const { id } = await params; 
     const body = await request.json();
-    const { code, name, courseId } = body;
-
-    if (!code || !name || !courseId) {
-      return NextResponse.json({ error: "Code, name, and courseId are required" }, { status: 400 });
-    }
+    const { code, name, courseId, teacherIds } = body;
 
     const updatedUnit = await prisma.unit.update({
       where: { id },
-      data: { code, name, courseId }
+      data: { 
+        code, 
+        name, 
+        courseId, 
+        // 'set' replaces the existing array of teachers with the new array
+        teachers: { set: (teacherIds || []).map(id => ({ id })) } 
+      }
     });
 
     return NextResponse.json(updatedUnit, { status: 200 });
   } catch (error) {
-    console.error("Failed to update unit:", error);
-    if (error.code === 'P2002') {
-        return NextResponse.json({ error: "A unit with this code already exists" }, { status: 400 });
-    }
     return NextResponse.json({ error: "Failed to update unit" }, { status: 500 });
   }
 }
 
 export async function DELETE(request, { params }) {
   try {
-    const { id } = await params;
-    
-    await prisma.unit.delete({
-      where: { id }
-    });
-
+    const { id } = await params; // Awaiting params!
+    await prisma.unit.delete({ where: { id } });
     return NextResponse.json({ message: "Unit deleted successfully" }, { status: 200 });
   } catch (error) {
     console.error("Failed to delete unit:", error);

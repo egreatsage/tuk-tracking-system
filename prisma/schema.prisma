@@ -116,8 +116,8 @@ model Unit {
   courseId       String
   course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
   
-  teacherId      String?
-  teacher        TeacherProfile?  @relation(fields: [teacherId], references: [id])
+ 
+  teachers       TeacherProfile[]  
 
   enrollments    UnitEnrollment[]
   lectures       Lecture[]
