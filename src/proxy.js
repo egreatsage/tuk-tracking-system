@@ -1,59 +1,56 @@
-// src/middleware.js
+// src/proxy.js
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 export default auth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = !!req.auth;
-  const userRole = req.auth?.user?.role; // e.g., 'SUPERADMIN', 'TEACHER', etc.
+  const userRole = req.auth?.user?.role; 
 
-  // 1. Define route categories
   const isAuthRoute = nextUrl.pathname === "/login";
-  const isPublicRoute = nextUrl.pathname === "/"; // Add any other public pages here
 
-  // 2. If the user is on the login page but ALREADY logged in, redirect them to their dashboard
+  // 1. Root URL Redirect: Send visitors to login, or their dashboard if logged in
+  if (nextUrl.pathname === "/") {
+    return isLoggedIn 
+      ? NextResponse.redirect(new URL(`/${userRole.toLowerCase()}`, nextUrl))
+      : NextResponse.redirect(new URL("/login", nextUrl));
+  }
+
+  // 2. Auth Route (Login)
   if (isAuthRoute) {
     if (isLoggedIn) {
       return NextResponse.redirect(new URL(`/${userRole.toLowerCase()}`, nextUrl));
     }
-    return null; // Let them see the login page
+    return null; 
   }
 
-  // 3. If the user is NOT logged in and trying to access a protected route, send to login
-  if (!isLoggedIn && !isPublicRoute && !isAuthRoute) {
+  // 3. Protect all other routes
+  if (!isLoggedIn && !isAuthRoute) {
     return NextResponse.redirect(new URL("/login", nextUrl));
   }
 
-  // 4. Role-based Route Protection (The Bouncer)
+  // 4. Role-based Bouncer
   if (isLoggedIn) {
     const path = nextUrl.pathname;
 
-    // If a non-SuperAdmin tries to access /superadmin/*
     if (path.startsWith("/superadmin") && userRole !== "SUPERADMIN") {
       return NextResponse.redirect(new URL(`/${userRole.toLowerCase()}`, nextUrl));
     }
-
-    // If a non-Teacher tries to access /teacher/*
     if (path.startsWith("/teacher") && userRole !== "TEACHER") {
       return NextResponse.redirect(new URL(`/${userRole.toLowerCase()}`, nextUrl));
     }
-
-    // If a non-Student tries to access /student/*
     if (path.startsWith("/student") && userRole !== "STUDENT") {
       return NextResponse.redirect(new URL(`/${userRole.toLowerCase()}`, nextUrl));
     }
-
-    // If a non-Parent tries to access /parent/*
     if (path.startsWith("/parent") && userRole !== "PARENT") {
       return NextResponse.redirect(new URL(`/${userRole.toLowerCase()}`, nextUrl));
     }
   }
 
-  return null; // Let the request proceed normally
+  return null; 
 });
 
-// 5. Configure the matcher to run middleware on specific paths
+// 5. Configure the matcher to run proxy on specific paths
 export const config = {
-  // Run on all routes EXCEPT API routes, static files, Next.js internals, and images
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.svg$).*)'],
 };
