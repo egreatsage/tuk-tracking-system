@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 const VALID_DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 const START_OF_DAY = '07:00';
 const END_OF_DAY   = '20:00';
+const TIME_REGEX   = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export async function GET(request) {
   try {
@@ -23,12 +24,24 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    // ── Parse body FIRST — everything depends on this ────────────────────────
     const body = await request.json();
     const { courseId, unitId, teacherId, day, startTime, endTime, venue } = body;
 
     // ── 0. All fields present ────────────────────────────────────────────────
     if (!courseId || !unitId || !teacherId || !day || !startTime || !endTime || !venue) {
       return NextResponse.json({ error: 'All fields are required.' }, { status: 400 });
+    }
+
+    // ── 0a. Normalise day casing ─────────────────────────────────────────────
+    const normalizedDay = day.toUpperCase();
+
+    // ── 0b. Time format validation ───────────────────────────────────────────
+    if (!TIME_REGEX.test(startTime) || !TIME_REGEX.test(endTime)) {
+      return NextResponse.json(
+        { error: 'Times must be in HH:MM 24-hour format.' },
+        { status: 400 },
+      );
     }
 
     // ── Check 1: Time sanity ─────────────────────────────────────────────────
@@ -40,7 +53,7 @@ export async function POST(request) {
     }
 
     // ── Check 2: Working hours / valid day ───────────────────────────────────
-    if (!VALID_DAYS.includes(day.toUpperCase())) {
+    if (!VALID_DAYS.includes(normalizedDay)) {
       return NextResponse.json(
         { error: `Invalid day "${day}". Must be a weekday (Monday – Friday).` },
         { status: 400 },
@@ -53,7 +66,13 @@ export async function POST(request) {
       );
     }
 
-    // ── Check 3: Unit belongs to the declared course ─────────────────────────
+    // ── Check 3a: Course exists ──────────────────────────────────────────────
+    const courseExists = await prisma.course.findUnique({ where: { id: courseId } });
+    if (!courseExists) {
+      return NextResponse.json({ error: 'Course not found.' }, { status: 404 });
+    }
+
+    // ── Check 3b: Unit belongs to the declared course ────────────────────────
     const requestedUnit = await prisma.unit.findUnique({ where: { id: unitId } });
     if (!requestedUnit) {
       return NextResponse.json({ error: 'Unit not found.' }, { status: 404 });
@@ -69,7 +88,7 @@ export async function POST(request) {
     //    Overlap condition: startA < endB  AND  endA > startB
     const overlapping = await prisma.timetableSlot.findMany({
       where: {
-        day,
+        day: normalizedDay,
         startTime: { lt: endTime   },
         endTime:   { gt: startTime },
       },
@@ -114,7 +133,7 @@ export async function POST(request) {
       if (slot.unitId === unitId) {
         return NextResponse.json(
           {
-            error: `Duplicate conflict: ${requestedUnit.code} is already scheduled on ${day} at ${slot.startTime}–${slot.endTime}.`,
+            error: `Duplicate conflict: ${requestedUnit.code} is already scheduled on ${normalizedDay} at ${slot.startTime}–${slot.endTime}.`,
           },
           { status: 400 },
         );
@@ -122,8 +141,6 @@ export async function POST(request) {
     }
 
     // ── Check 8: Cross-course student clash (shared / elective units) ────────
-    //    Find students enrolled in the new unit, then see if any of them are
-    //    also enrolled in any unit that already has an overlapping slot today.
     const overlappingUnitIds = overlapping.map((s) => s.unitId);
 
     if (overlappingUnitIds.length > 0) {
@@ -160,7 +177,7 @@ export async function POST(request) {
 
     // ── All checks passed — persist ──────────────────────────────────────────
     const newSlot = await prisma.timetableSlot.create({
-      data: { courseId, unitId, teacherId, day, startTime, endTime, venue },
+      data: { courseId, unitId, teacherId, day: normalizedDay, startTime, endTime, venue },
     });
 
     return NextResponse.json(newSlot, { status: 201 });

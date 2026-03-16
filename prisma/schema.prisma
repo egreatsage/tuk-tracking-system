@@ -169,6 +169,9 @@ model TimetableSlot {
   
   unitId         String
   unit           Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  courseId  String
+  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
   
   teacherId      String
   teacher        TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -177,6 +180,7 @@ model TimetableSlot {
   startTime      String         // e.g., "08:00" (Using 24hr format makes time math easy)
   endTime        String         // e.g., "10:00"
   venue          String
+
 }
 
 // --- ASSESSMENTS & RESULTS ---

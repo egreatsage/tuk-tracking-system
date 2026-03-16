@@ -4,9 +4,12 @@ import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
 import {
-  Trash2, AlertCircle, CheckCircle2, Clock, MapPin, User,
+  Trash2, AlertCircle, Clock, MapPin, User,
   BookOpen, ChevronRight, LayoutGrid, List, X, ChevronDown,
   GraduationCap, Calendar,
+  CheckCircle2Icon,
+  Pencil,
+  CheckCircle2,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────
@@ -69,7 +72,7 @@ function SelectField({ label, icon: Icon, disabled, children, ...props }) {
 /* ─────────────────────────────────────────────────────────────
    Slot detail drawer / modal (mobile: drawer, desktop: inline)
 ───────────────────────────────────────────────────────────── */
-function SlotDetail({ slot, colorMap, onClose, onDelete, isDeleting }) {
+function SlotDetail({ slot, colorMap, onClose, onDelete, isDeleting,onEdit }) {
   if (!slot) return null;
   const c = colorMap[slot.unitId] || UNIT_COLORS[0];
   return (
@@ -108,6 +111,14 @@ function SlotDetail({ slot, colorMap, onClose, onDelete, isDeleting }) {
           <span className="text-slate-600">{slot.unit.course?.name}</span>
         </div>
       </div>
+    <button
+  onClick={() => onEdit(slot)}
+  className="mt-4 w-full flex items-center justify-center gap-2 py-2 rounded-xl
+    bg-indigo-50 border border-indigo-200 text-indigo-600 text-sm font-medium
+    hover:bg-indigo-100 transition"
+>
+  <Pencil size={14} /> Edit slot
+</button>
 
       <button
         onClick={() => onDelete(slot.id)}
@@ -118,10 +129,11 @@ function SlotDetail({ slot, colorMap, onClose, onDelete, isDeleting }) {
         {isDeleting ? (
           <span className="w-4 h-4 border-2 border-rose-300 border-t-rose-500 rounded-full animate-spin" />
         ) : (
-          <Trash2 size={14} />
+          <Trash2  size={14} />
         )}
         Remove slot
       </button>
+      
     </div>
   );
 }
@@ -142,7 +154,7 @@ function GridView({ slots, colorMap, onSlotClick, activeSlotId }) {
         map[slot.day][slot.startTime].push(slot);
       } else if (map[slot.day]) {
         // Slot starts at a non-standard time — find nearest hour block
-        const nearest = TIME_SLOTS.find((t) => t <= slot.startTime) || TIME_SLOTS[0];
+       const nearest = [...TIME_SLOTS].reverse().find((t) => t <= slot.startTime) || TIME_SLOTS[0];
         if (map[slot.day][nearest]) map[slot.day][nearest].push(slot);
       }
     }
@@ -268,7 +280,7 @@ function ListView({ slots, colorMap, onSlotClick, onDelete, deletingId }) {
                 return (
                   <div
                     key={slot.id}
-                    className={`${c.bg} border ${c.border} rounded-xl p-4 flex items-center justify-between gap-4 group
+                    className={`${c.bg} border ${c.border} rounded-xl p-4  flex items-center justify-between gap-4 group
                       hover:shadow-sm transition cursor-pointer`}
                     onClick={() => onSlotClick(slot)}
                   >
@@ -300,13 +312,15 @@ function ListView({ slots, colorMap, onSlotClick, onDelete, deletingId }) {
                       onClick={(e) => { e.stopPropagation(); onDelete(slot.id); }}
                       disabled={deletingId === slot.id}
                       className="shrink-0 p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50
-                        opacity-0 group-hover:opacity-100 transition disabled:opacity-50"
+                        group-hover:opacity-100 hover:cursor-pointer transition disabled:opacity-50"
                       title="Remove slot"
                     >
                       {deletingId === slot.id ? (
                         <span className="w-4 h-4 border-2 border-rose-300 border-t-rose-500 rounded-full animate-spin block" />
                       ) : (
-                        <Trash2 size={15} />
+                       <div>
+                         <Trash2 size={15} />
+                       </div>
                       )}
                     </button>
                   </div>
@@ -340,11 +354,20 @@ export default function TimetablePage() {
   const [selectedSlot, setSelectedSlot]   = useState(null);
   const [deletingId, setDeletingId]       = useState(null);
 
+  const [editingSlot, setEditingSlot]     = useState(null); // slot being edited
+  const [isUpdating, setIsUpdating]       = useState(false);
+
   // Form
   const {
     register, handleSubmit, watch, reset,
     formState: { isSubmitting },
   } = useForm();
+
+  const {
+  register: registerEdit,
+  handleSubmit: handleSubmitEdit,
+  reset: resetEdit,
+} = useForm();
   const selectedCourseId  = watch("courseId");
   const selectedUnitId    = watch("unitId");
   const availableFormUnits   = units.filter((u) => u.courseId === selectedCourseId);
@@ -449,6 +472,38 @@ export default function TimetablePage() {
     }
   };
 
+// ── Edit ──────────────────────────────────────────────────
+const handleEdit = async (data) => {
+  setIsUpdating(true);
+  try {
+    const res = await fetch(`/api/timetable/${editingSlot.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error);
+
+    toast.custom((t) => (
+      <div className={`flex items-center gap-3 bg-white shadow-lg border border-emerald-100 rounded-xl px-4 py-3 ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+        <span className="text-sm font-medium text-slate-700">Slot updated successfully!</span>
+      </div>
+    ));
+    setEditingSlot(null);
+    setSelectedSlot(null);
+    fetchData();
+  } catch (error) {
+    toast.custom((t) => (
+      <div className={`flex items-start gap-3 bg-white shadow-lg border border-rose-100 rounded-xl px-4 py-3 max-w-sm ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <AlertCircle size={18} className="text-rose-500 shrink-0 mt-0.5" />
+        <span className="text-sm font-medium text-slate-700">{error.message}</span>
+      </div>
+    ), { duration: 6000 });
+  } finally {
+    setIsUpdating(false);
+  }
+};
   // ── Delete ────────────────────────────────────────────────
   const handleDelete = async (id) => {
     if (!window.confirm("Remove this class from the timetable?")) return;
@@ -705,6 +760,83 @@ export default function TimetablePage() {
             )}
           </div>
 
+          {/* ── Edit Modal ─────────────────────────────────────── */}
+{editingSlot && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
+      <div className="bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-4 flex items-center justify-between">
+        <div>
+          <h2 className="text-white font-bold text-base">Edit Slot</h2>
+          <p className="text-indigo-200 text-xs mt-0.5">{editingSlot.unit.code} · {editingSlot.unit.name}</p>
+        </div>
+        <button onClick={() => setEditingSlot(null)} className="text-white/70 hover:text-white transition">
+          <X size={18} />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmitEdit(handleEdit)} className="p-5 space-y-4">
+        <SelectField label="Teacher" icon={User} {...registerEdit("teacherId", { required: true })}>
+          <option value="">Select teacher…</option>
+          {(units.find(u => u.id === editingSlot.unitId)?.teachers || []).map((t) => (
+            <option key={t.id} value={t.id}>{t.user?.name}</option>
+          ))}
+        </SelectField>
+
+        <SelectField label="Day of Week" {...registerEdit("day", { required: true })}>
+          <option value="">Select day…</option>
+          {DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+        </SelectField>
+
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <FieldLabel>Start</FieldLabel>
+            <div className="relative">
+              <Clock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input type="time" {...registerEdit("startTime", { required: true })}
+                className="w-full pl-8 pr-2 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
+                  focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white transition" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <FieldLabel>End</FieldLabel>
+            <div className="relative">
+              <Clock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input type="time" {...registerEdit("endTime", { required: true })}
+                className="w-full pl-8 pr-2 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
+                  focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white transition" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>Venue / Room</FieldLabel>
+          <div className="relative">
+            <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input type="text" {...registerEdit("venue", { required: true })} placeholder="e.g. Lab 2"
+              className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
+                placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300
+                focus:border-indigo-400 bg-white transition uppercase placeholder:normal-case" />
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={() => setEditingSlot(null)}
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">
+            Cancel
+          </button>
+          <button type="submit" disabled={isUpdating}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-sm font-semibold
+              py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+            {isUpdating ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
+            ) : "Save Changes"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
           {/* Timetable content */}
           {isLoading ? (
             <div className="space-y-3">
@@ -741,6 +873,17 @@ export default function TimetablePage() {
                     slot={selectedSlot}
                     colorMap={colorMap}
                     onClose={() => setSelectedSlot(null)}
+                    onEdit={(slot) => {
+  setEditingSlot(slot);
+  setSelectedSlot(null);
+  resetEdit({
+    teacherId: slot.teacherId,
+    day:       slot.day,
+    startTime: slot.startTime,
+    endTime:   slot.endTime,
+    venue:     slot.venue,
+  });
+}}
                     onDelete={handleDelete}
                     isDeleting={deletingId === selectedSlot.id}
                   />
