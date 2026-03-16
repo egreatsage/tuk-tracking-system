@@ -36,8 +36,8 @@ export async function POST(request) {
 
     // Hash a default password for the MVP phase
     const hashedPassword = await bcrypt.hash("password123", 10);
-
-    // Create the User AND the StudentProfile in one transaction
+    
+    // 1. Create the User AND the StudentProfile FIRST
     const newStudent = await prisma.user.create({
       data: {
         name,
@@ -56,6 +56,24 @@ export async function POST(request) {
         studentProfile: true
       }
     });
+
+    // 2. Fetch all units that belong to the course the student just selected
+    const courseUnits = await prisma.unit.findMany({
+      where: { courseId: courseId } // Fix: Use the courseId from the request body
+    });
+
+    // 3. Map those units into an array of enrollment objects using the newly generated profile ID
+    const enrollmentData = courseUnits.map((unit) => ({
+      studentId: newStudent.studentProfile.id, // Fix: Use the ID from the newly created student
+      unitId: unit.id
+    }));
+
+    // 4. Bulk insert them into the UnitEnrollment table
+    if (enrollmentData.length > 0) {
+      await prisma.unitEnrollment.createMany({
+        data: enrollmentData
+      });
+    }
 
     return NextResponse.json(newStudent, { status: 201 });
   } catch (error) {

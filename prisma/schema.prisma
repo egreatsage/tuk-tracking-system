@@ -154,6 +154,7 @@ model Lecture {
 model Attendance {
   id        String           @id @default(cuid())
   status    AttendanceStatus @default(ABSENT)
+  reason    String?          // <-- Add this new optional field
   
   lectureId String
   lecture   Lecture          @relation(fields: [lectureId], references: [id], onDelete: Cascade)
