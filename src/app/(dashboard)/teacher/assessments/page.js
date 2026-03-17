@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { FileUp, Plus, Calendar, BookOpen, Link as LinkIcon, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function TeacherAssessmentsPage() {
   const [assessments, setAssessments] = useState([]);
@@ -21,7 +22,7 @@ export default function TeacherAssessmentsPage() {
     dueDate: "",
     maxMarks: "100",
   });
-
+ const router = useRouter();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -51,6 +52,7 @@ export default function TeacherAssessmentsPage() {
       {
         cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
         uploadPreset: 'ml_default', // You can change this if you set a specific preset in Cloudinary
+        apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
         sources: ['local', 'url', 'google_drive'],
         multiple: false,
         folder: 'tuk_assessments',
@@ -247,9 +249,12 @@ export default function TeacherAssessmentsPage() {
                       <LinkIcon size={14}/> View File
                     </a>
                   )}
-                  <button className="flex items-center justify-center gap-1.5 px-4 py-2 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 text-xs font-semibold rounded-lg transition">
-                    View Submissions
-                  </button>
+                  <button 
+  onClick={() => router.push(`/teacher/assessments/${assessment.id}/submissions`)}
+  className="flex items-center justify-center gap-1.5 px-4 py-2 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 text-xs font-semibold rounded-lg transition"
+>
+  View Submissions
+</button>
                 </div>
               </div>
             ))

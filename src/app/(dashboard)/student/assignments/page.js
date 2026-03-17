@@ -33,6 +33,7 @@ export default function StudentAssignmentsPage() {
         cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
         uploadPreset: 'ml_default', 
         sources: ['local', 'url', 'google_drive'],
+        apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
         multiple: false,
         folder: 'tuk_submissions',
         uploadSignature: async (callback, paramsToSign) => {
