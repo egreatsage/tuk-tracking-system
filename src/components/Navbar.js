@@ -4,6 +4,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { LogOut, User as UserIcon, Bell } from "lucide-react";
 import Link from "next/link";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { data: session, status } = useSession();
@@ -18,10 +19,10 @@ export default function Navbar() {
 
       <div className="flex items-center gap-6">
         {/* Notification Bell (Placeholder for Phase 4) */}
-        <button className="text-gray-500 hover:text-blue-600 relative">
-          <Bell size={20} />
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">3</span>
-        </button>
+        <div className="text-gray-500 hover:text-blue-600 relative">
+          <NotificationBell size={20} />
+          
+        </div>
 
         <div className="flex items-center gap-3 border-l pl-6">
           <div className="flex flex-col items-end">

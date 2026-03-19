@@ -220,12 +220,13 @@ model Submission {
 // --- SYSTEM UTILS ---
 model Notification {
   id        String   @id @default(cuid())
+  userId    String   // The user receiving the alert
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
   message   String
   isRead    Boolean  @default(false)
+  link      String?  // Optional URL to redirect the user when clicked
   createdAt DateTime @default(now())
-
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model InviteToken {

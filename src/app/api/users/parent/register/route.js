@@ -32,21 +32,23 @@ export async function POST(request) {
     });
 
     if (existingUser) {
-      // Parent already exists! Just link the new student to their existing profile.
       if (existingUser.role !== 'PARENT') {
         return NextResponse.json({ error: 'Email is in use by a non-parent account' }, { status: 400 });
       }
 
+      // Parent exists: Create a new link in the ParentStudent join table using the 'children' relation
       await prisma.parentProfile.update({
         where: { id: existingUser.parentProfile.id },
         data: {
-          students: {
-            connect: { id: inviteRecord.studentId }
+          children: {
+            create: {
+              studentId: inviteRecord.studentId
+            }
           }
         }
       });
     } else {
-      // New Parent: Create the User, the ParentProfile, and link the Student all at once
+      // New Parent: Create User, ParentProfile, and the ParentStudent join record via 'children'
       const hashedPassword = await bcrypt.hash(password, 10);
       
       await prisma.user.create({
@@ -57,8 +59,10 @@ export async function POST(request) {
           role: 'PARENT',
           parentProfile: {
             create: {
-              students: {
-                connect: { id: inviteRecord.studentId }
+              children: {
+                create: {
+                  studentId: inviteRecord.studentId
+                }
               }
             }
           }

@@ -42,6 +42,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // 1. Create the Assessment
     const newAssessment = await prisma.assessment.create({
       data: {
         unitId,
@@ -54,6 +55,55 @@ export async function POST(request) {
       },
       include: { unit: true }
     });
+
+    // --- NOTIFICATION LOGIC ---
+
+    // 2. Find all students enrolled in this specific unit
+    const enrollments = await prisma.unitEnrollment.findMany({
+      where: { unitId: unitId },
+      include: { student: true }
+    });
+
+    if (enrollments.length > 0) {
+      const studentIds = enrollments.map(e => e.student.id);
+      const notificationsToCreate = [];
+
+      // 3. Queue up notifications for all enrolled students
+      enrollments.forEach(enrollment => {
+        notificationsToCreate.push({
+          userId: enrollment.student.userId,
+          title: `New ${type} Posted`,
+          message: `"${title}" has been posted for ${newAssessment.unit.code}. Due: ${new Date(dueDate).toLocaleDateString()}`,
+          link: "/student/assignments"
+        });
+      });
+
+      // 4. Find all parents linked to these enrolled students
+      const linkedParents = await prisma.parentProfile.findMany({
+        where: {
+          children: {
+            some: { studentId: { in: studentIds } }
+          }
+        }
+      });
+
+      // 5. Queue up notifications for the parents
+      linkedParents.forEach(parent => {
+        notificationsToCreate.push({
+          userId: parent.userId,
+          title: `New ${type} for your child`,
+          message: `"${title}" was posted in ${newAssessment.unit.code}. Due: ${new Date(dueDate).toLocaleDateString()}`,
+          link: "/parent"
+        });
+      });
+
+      // 6. Bulk insert all notifications at once for maximum performance
+      if (notificationsToCreate.length > 0) {
+        await prisma.notification.createMany({
+          data: notificationsToCreate
+        });
+      }
+    }
 
     return NextResponse.json(newAssessment, { status: 201 });
   } catch (error) {
