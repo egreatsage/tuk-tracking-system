@@ -7,7 +7,9 @@ import { User, Mail, Hash, BookOpen, GraduationCap, Calendar, ShieldCheck } from
 export default function StudentProfilePage() {
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
+  const [parentEmail, setParentEmail] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState("");
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -36,6 +38,31 @@ export default function StudentProfilePage() {
 
   const sp = profile.studentProfile;
   const enrollments = sp.enrollments || [];
+
+  const handleInviteParent = async (e) => {
+    e.preventDefault();
+    setIsInviting(true);
+    setGeneratedLink("");
+
+    try {
+      const res = await fetch("/api/users/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: parentEmail }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send invite");
+
+      toast.success("Invite generated!");
+      setGeneratedLink(data.inviteLink); // Show link for testing
+      setParentEmail("");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setIsInviting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-4 sm:p-6">
@@ -138,6 +165,40 @@ export default function StudentProfilePage() {
 
         </div>
       </div>
+
+      {/* --- New Parent Invite Card --- */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">Link a Parent/Guardian</h3>
+            <p className="text-xs text-slate-500 mb-4">Invite your parent to view your academic progress and attendance.</p>
+            
+            <form onSubmit={handleInviteParent} className="space-y-3">
+              <input
+                type="email"
+                placeholder="parent@email.com"
+                value={parentEmail}
+                onChange={(e) => setParentEmail(e.target.value)}
+                required
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-sky-300 outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isInviting}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg transition"
+              >
+                {isInviting ? "Generating..." : "Generate Invite Link"}
+              </button>
+            </form>
+
+            {/* Display the link purely for MVP testing purposes */}
+            {generatedLink && (
+              <div className="mt-4 p-3 bg-sky-50 border border-sky-200 rounded-lg break-all">
+                <p className="text-[10px] font-bold text-sky-800 uppercase mb-1">Testing Link (MVP Only)</p>
+                <a href={generatedLink} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">
+                  {generatedLink}
+                </a>
+              </div>
+            )}
+          </div>
     </div>
   );
 }

@@ -231,8 +231,9 @@ model Notification {
 model InviteToken {
   id        String   @id @default(cuid())
   token     String   @unique
-  email     String?  // Optional: if pre-assigned to an email
-  role      Role     // The role they will get upon registering
+  email     String
+  role      Role     @default(PARENT)
+  studentId String?  // The ID of the student who generated the invite
   expires   DateTime
   createdAt DateTime @default(now())
 }
