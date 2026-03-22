@@ -1,7 +1,7 @@
 // src/app/(dashboard)/student/page.js
 import { auth } from "@/auth";
 import Link from "next/link";
-import { UserCircle, Calendar, Activity, FileText, ArrowRight } from "lucide-react";
+import { UserCircle, Calendar, Activity, FileText, ArrowRight, QrCode } from "lucide-react";
 
 export default async function StudentDashboard() {
   const session = await auth();
@@ -19,6 +19,28 @@ export default async function StudentDashboard() {
       </header>
 
       <h2 className="text-lg font-bold text-slate-800 px-1 pt-4">Student Hub</h2>
+
+      {/* --- ADD THIS QUICK ACTION SECTION --- */}
+      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+            <QrCode size={32} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">In a class right now?</h2>
+            <p className="text-indigo-100 text-sm mt-1">
+              Scan the teacher's QR code or enter the 4-digit PIN to mark your attendance.
+            </p>
+          </div>
+        </div>
+        
+        <Link 
+          href="/student/attendance/mark"
+          className="shrink-0 bg-white text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 font-bold py-3 px-6 rounded-xl transition flex items-center gap-2 w-full sm:w-auto justify-center"
+        >
+          Check In Now <ArrowRight size={18} />
+        </Link>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link href="/student/profile" className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition group">

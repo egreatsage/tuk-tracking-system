@@ -27,23 +27,50 @@ export async function POST(request) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 4. Create or Update the Lecture for TODAY
+    // 4. Get Teacher profile
     const teacherProfile = await prisma.teacherProfile.findUnique({
       where: { userId: session.user.id }
     });
 
-    // We look for an existing lecture for this slot today. If none, create it.
-    const lecture = await prisma.lecture.create({
-      data: {
+    if (!teacherProfile) {
+      return NextResponse.json({ error: "Teacher profile not found" }, { status: 404 });
+    }
+
+    // 5. Look for an existing lecture for this slot today to prevent duplicates
+    const existingLecture = await prisma.lecture.findFirst({
+      where: {
         date: today,
         time: slot.startTime,
-        roomId: slot.roomId,
         unitId: slot.unitId,
-        teacherId: teacherProfile.id,
-        otpCode,
-        otpExpiresAt
+        teacherId: teacherProfile.id
       }
     });
+
+    let lecture;
+
+    if (existingLecture) {
+      // If the lecture already exists for today, just refresh the OTP
+      lecture = await prisma.lecture.update({
+        where: { id: existingLecture.id },
+        data: {
+          otpCode,
+          otpExpiresAt
+        }
+      });
+    } else {
+      // If none exists, create a brand new lecture
+      lecture = await prisma.lecture.create({
+        data: {
+          date: today,
+          time: slot.startTime,
+          roomId: slot.roomId,
+          unitId: slot.unitId,
+          teacherId: teacherProfile.id,
+          otpCode,
+          otpExpiresAt
+        }
+      });
+    }
 
     return NextResponse.json(lecture, { status: 200 });
 

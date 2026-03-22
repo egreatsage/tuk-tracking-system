@@ -8,7 +8,8 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   BookOpen, Users, Calendar, LayoutDashboard,
-  ClipboardCheck, FileText, UserCircle, Activity, X, Menu
+  ClipboardCheck, FileText, UserCircle, Activity, X, Menu,
+  ScanLine
 } from "lucide-react";
 
 export default function DashboardLayout({ children }) {
@@ -67,6 +68,7 @@ export default function DashboardLayout({ children }) {
       { name: "Timetable", href: "/student/timetable", icon: Calendar },
       { name: "Attendance", href: "/student/attendance", icon: Activity },
       { name: "Assignments", href: "/student/assignments", icon: FileText },
+      { name: "Class Check-in", href: "/student/attendance/mark", icon: ScanLine },
     ],
     parent: [
       { name: "Dashboard", href: "/parent", icon: LayoutDashboard },

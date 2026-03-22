@@ -2,14 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { X, Save, UserCheck, AlertCircle } from "lucide-react";
+import { X, Save, UserCheck, AlertCircle, Play, KeyRound } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react"; // <-- Import QR Code library
 
 export default function AttendanceModal({ slot, onClose }) {
   const [students, setStudents] = useState([]);
   const [attendanceState, setAttendanceState] = useState({});
-  const [reasonsState, setReasonsState] = useState({}); // <-- New state to track reasons
+  const [reasonsState, setReasonsState] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // State variables for OTP & QR flow
+  const [isStartingLecture, setIsStartingLecture] = useState(false);
+  const [otpCode, setOtpCode] = useState(null);
+  const [otpExpiresAt, setOtpExpiresAt] = useState(null);
+  const [lectureId, setLectureId] = useState(null); // <-- Keep track of the actual lecture ID
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -23,7 +30,7 @@ export default function AttendanceModal({ slot, onClose }) {
         const initialReasons = {};
         data.forEach((student) => {
           initialStatus[student.id] = "ABSENT";
-          initialReasons[student.id] = ""; // Initialize empty reasons
+          initialReasons[student.id] = "";
         });
         setAttendanceState(initialStatus);
         setReasonsState(initialReasons);
@@ -37,9 +44,34 @@ export default function AttendanceModal({ slot, onClose }) {
     fetchStudents();
   }, [slot.unitId]);
 
+  const handleStartLecture = async () => {
+    setIsStartingLecture(true);
+    try {
+      const res = await fetch("/api/teacher/lectures/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timetableSlotId: slot.id }),
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.error || "Failed to start lecture");
+
+      // Save the generated code, expiry, AND the lecture ID from the database
+      setOtpCode(data.otpCode);
+      setOtpExpiresAt(new Date(data.otpExpiresAt));
+      setLectureId(data.id); 
+      
+      toast.success("Lecture started! Project this code to students.");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setIsStartingLecture(false);
+    }
+  };
+
   const handleStatusChange = (studentId, status) => {
     setAttendanceState((prev) => ({ ...prev, [studentId]: status }));
-    // If they change the status away from EXCUSED, clear the reason to keep data clean
     if (status !== "EXCUSED") {
       setReasonsState((prev) => ({ ...prev, [studentId]: "" }));
     }
@@ -52,11 +84,10 @@ export default function AttendanceModal({ slot, onClose }) {
   const handleSave = async () => {
     setIsSaving(true);
     
-    // Format data for the API, including the reason
     const attendanceData = Object.entries(attendanceState).map(([studentId, status]) => ({
       studentId,
       status,
-      reason: status === "EXCUSED" ? reasonsState[studentId] : null, // Only send reason if excused
+      reason: status === "EXCUSED" ? reasonsState[studentId] : null,
     }));
 
     const isoDate = slot.dateClicked.toISOString().split('T')[0] + "T00:00:00.000Z";
@@ -94,7 +125,7 @@ export default function AttendanceModal({ slot, onClose }) {
           <div>
             <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
               <UserCheck className="text-indigo-600" size={20} />
-              Mark Attendance
+              Manage Lecture
             </h3>
             <p className="text-sm text-slate-500 mt-1">
               {slot.title.split(' - ')[0]} • {slot.dateClicked.toLocaleDateString()}
@@ -105,8 +136,64 @@ export default function AttendanceModal({ slot, onClose }) {
           </button>
         </div>
 
-        {/* Body / Student List */}
+        {/* --- OTP & QR CODE SECTION --- */}
+        <div className="p-5 border-b border-slate-100 bg-white shrink-0">
+          {!otpCode ? (
+             <button
+             onClick={handleStartLecture}
+             disabled={isStartingLecture}
+             className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-xl transition"
+           >
+             {isStartingLecture ? (
+               <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+             ) : (
+               <>
+                 <Play size={18} /> Start Lecture & Generate Code
+               </>
+             )}
+           </button>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-8 bg-indigo-50 border border-indigo-100 rounded-xl p-6">
+               
+               {/* 1. The QR Code */}
+               <div className="flex flex-col items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                 <QRCodeSVG 
+                   // Generates a link using your current domain
+                   value={`${typeof window !== 'undefined' ? window.location.origin : ''}/student/attendance/mark?lectureId=${lectureId}&code=${otpCode}`} 
+                   size={140} 
+                   level="H"
+                   includeMargin={true}
+                 />
+                 <p className="text-[11px] text-slate-500 mt-2 font-bold uppercase tracking-wider">Scan to check-in</p>
+               </div>
+
+               {/* 2. The Text Code */}
+               <div className="text-center sm:text-left flex flex-col items-center sm:items-start">
+                 <div className="flex items-center gap-2 mb-2">
+                   <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
+                     <KeyRound size={16} />
+                   </div>
+                   <p className="text-sm font-bold text-indigo-600 uppercase tracking-wider">Or Enter Code</p>
+                 </div>
+                 
+                 <h1 className="text-5xl font-mono font-bold text-slate-900 tracking-[0.2em] mb-2">{otpCode}</h1>
+                 
+                 <div className="inline-flex items-center gap-1.5 bg-indigo-100/50 text-indigo-700 px-3 py-1 rounded-full text-xs font-medium">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                    </span>
+                    Code expires at {otpExpiresAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                 </div>
+               </div>
+               
+            </div>
+          )}
+        </div>
+
+        {/* Body / Student List (Manual Override) */}
         <div className="flex-1 overflow-y-auto p-5">
+            <h4 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">Manual Override</h4>
           {isLoading ? (
             <div className="flex justify-center py-10">
               <span className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
@@ -129,7 +216,6 @@ export default function AttendanceModal({ slot, onClose }) {
                         <p className="text-xs text-slate-500 font-mono mt-0.5">{student.regNumber}</p>
                       </div>
                       
-                      {/* Status Toggle Buttons */}
                       <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg shrink-0">
                         {["PRESENT", "ABSENT", "LATE", "EXCUSED"].map((status) => {
                           const isSelected = attendanceState[student.id] === status;
@@ -154,7 +240,6 @@ export default function AttendanceModal({ slot, onClose }) {
                       </div>
                     </div>
 
-                    {/* Conditional Input for Reason */}
                     {isExcused && (
                       <div className="mt-1 animate-in slide-in-from-top-2 duration-200">
                         <input
@@ -186,7 +271,7 @@ export default function AttendanceModal({ slot, onClose }) {
             ) : (
               <Save size={18} />
             )}
-            Save Attendance
+            Save Manual Overrides
           </button>
         </div>
 
