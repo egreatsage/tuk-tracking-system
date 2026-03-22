@@ -159,7 +159,7 @@ export default function AttendanceModal({ slot, onClose }) {
                <div className="flex flex-col items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                  <QRCodeSVG 
                    // Generates a link using your current domain
-                   value={`${typeof window !== 'undefined' ? window.location.origin : ''}/student/attendance/mark?lectureId=${lectureId}&code=${otpCode}`} 
+                   value={`${process.env.NEXT_PUBLIC_APP_URL}/student/attendance/mark?lectureId=${lectureId}&code=${otpCode}`} 
                    size={140} 
                    level="H"
                    includeMargin={true}

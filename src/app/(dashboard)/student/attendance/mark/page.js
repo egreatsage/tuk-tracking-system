@@ -25,41 +25,77 @@ function CheckInForm() {
     }
   }, [urlCode, lectureId]);
 
-  const handleCheckIn = async (otpCode, id = null) => {
+ const handleCheckIn = async (otpCode, id = null) => {
     if (!otpCode || otpCode.length < 4) {
       toast.error("Please enter a valid 4-digit code");
       return;
     }
 
     setIsSubmitting(true);
-    
-    try {
-      const res = await fetch("/api/student/attendance/mark", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: otpCode, lectureId: id }),
-      });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to mark attendance");
-      }
-
-      setSuccess(true);
-      toast.success(data.message);
-      
-      // Redirect back to dashboard after 3 seconds
-      setTimeout(() => {
-        router.push("/student");
-      }, 3000);
-
-    } catch (error) {
-      toast.error(error.message);
-      setCode(""); // Clear the input so they can try again
-    } finally {
+    // 1. Check if the device supports GPS
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
       setIsSubmitting(false);
+      return;
     }
+
+    // 2. Ask for the location
+    toast.loading("Verifying your location...", { id: "location-toast" });
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        // Successfully got location!
+        const { latitude, longitude } = position.coords;
+        toast.dismiss("location-toast");
+
+        // 3. Send code AND location to the backend
+        try {
+          const res = await fetch("/api/student/attendance/mark", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              code: otpCode, 
+              lectureId: id,
+              latitude,    // Send latitude
+              longitude    // Send longitude
+            }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) throw new Error(data.error || "Failed to mark attendance");
+
+          setSuccess(true);
+          toast.success(data.message);
+          
+          setTimeout(() => {
+            router.push("/student");
+          }, 3000);
+
+        } catch (error) {
+          toast.error(error.message);
+          setCode(""); 
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+      (error) => {
+        // Student denied permission or location failed
+        toast.dismiss("location-toast");
+        setIsSubmitting(false);
+        if (error.code === 1) {
+          toast.error("You must allow location access to check in.");
+        } else {
+          toast.error("Could not determine your location. Try standing near a window.");
+        }
+      },
+      { 
+        enableHighAccuracy: true, // Forces phone to use GPS instead of just WiFi
+        timeout: 10000, 
+        maximumAge: 0 
+      }
+    );
   };
 
   const handleSubmit = (e) => {
