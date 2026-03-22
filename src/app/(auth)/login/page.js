@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
@@ -11,7 +11,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   
-  // Initialize React Hook Form
   const {
     register,
     handleSubmit,
@@ -21,33 +20,36 @@ export default function LoginPage() {
   const onSubmit = async (data) => {
     setIsLoading(true);
     
-    // Call NextAuth's credentials provider
     const result = await signIn("credentials", {
-      redirect: false, // We handle the redirect manually so we can show a toast
+      redirect: false,
       email: data.email,
       password: data.password,
     });
 
-    setIsLoading(false);
-
     if (result?.error) {
       toast.error("Invalid email or password!");
+      setIsLoading(false);
     } else {
       toast.success("Login successful!");
-      // Since we are logging in as the Super Admin, route to their dashboard
-      router.push("/superadmin");
-      router.refresh(); // Force Next.js to update the session state
+      
+      // Fetch the session to determine the user's role
+      const session = await getSession();
+      const role = session?.user?.role?.toLowerCase() || "student";
+      
+      // Redirect to their specific dashboard
+      router.push(`/${role}`);
+      router.refresh(); 
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-md border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-2 text-center text-3xl font-black text-slate-900 tracking-tight">
             TUK Tracking System
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-slate-500 font-medium">
             Sign in to your account
           </p>
         </div>
@@ -55,25 +57,25 @@ export default function LoginPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email Address</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email Address</label>
               <input
                 type="email"
                 {...register("email", { required: "Email is required" })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="admin@tuk.ac.ke"
+                className="block w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50 transition"
+                placeholder="user@tuk.ac.ke"
               />
-              {errors.email && <span className="text-red-500 text-xs mt-1">{errors.email.message}</span>}
+              {errors.email && <span className="text-rose-500 text-xs mt-1 font-medium">{errors.email.message}</span>}
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Password</label>
               <input
                 type="password"
                 {...register("password", { required: "Password is required" })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="block w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50 transition"
                 placeholder="••••••••"
               />
-              {errors.password && <span className="text-red-500 text-xs mt-1">{errors.password.message}</span>}
+              {errors.password && <span className="text-rose-500 text-xs mt-1 font-medium">{errors.password.message}</span>}
             </div>
           </div>
 
@@ -81,9 +83,9 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 transition-colors"
+              className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300 transition shadow-md"
             >
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Sign in"}
             </button>
           </div>
         </form>
