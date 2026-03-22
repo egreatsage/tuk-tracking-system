@@ -341,6 +341,7 @@ export default function TimetablePage() {
   const [slots, setSlots]         = useState([]);
   const [courses, setCourses]     = useState([]);
   const [units, setUnits]         = useState([]);
+  const [venues, setVenues]       = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
@@ -377,14 +378,17 @@ export default function TimetablePage() {
   // ── Fetch ──────────────────────────────────────────────────
   const fetchData = async () => {
     try {
-      const [sR, cR, uR] = await Promise.all([
+      const [sR, cR, uR, vR] = await Promise.all([
         fetch("/api/timetable"),
         fetch("/api/courses"),
         fetch("/api/units"),
+        fetch("/api/venues"),
       ]);
-      setSlots(await sR.json());
-      setCourses(await cR.json());
-      setUnits(await uR.json());
+      const toArray = (v) => (Array.isArray(v) ? v : []);
+      setSlots(toArray(await sR.json()));
+      setCourses(toArray(await cR.json()));
+      setUnits(toArray(await uR.json()));
+      if (vR.ok) setVenues(toArray(await vR.json()));
     } catch {
       toast.error("Failed to load data");
     } finally {
@@ -398,6 +402,7 @@ export default function TimetablePage() {
     const map = {};
     const seen = {};
     let idx = 0;
+    if (!Array.isArray(slots)) return {};
     [...slots].sort((a, b) => a.unit.code.localeCompare(b.unit.code)).forEach((s) => {
       if (!seen[s.unitId]) {
         seen[s.unitId] = true;
@@ -460,7 +465,7 @@ export default function TimetablePage() {
           <span className="text-sm font-medium text-slate-700">Class scheduled successfully!</span>
         </div>
       ));
-      reset({ courseId: "", unitId: "", teacherId: "", day: "", startTime: "", endTime: "", venue: "" });
+      reset({ courseId: "", unitId: "", teacherId: "", day: "", startTime: "", endTime: "", roomId: "" });
       fetchData();
     } catch (error) {
       toast.custom((t) => (
@@ -476,10 +481,11 @@ export default function TimetablePage() {
 const handleEdit = async (data) => {
   setIsUpdating(true);
   try {
+    const { teacherId, day, startTime, endTime, roomId, venue } = data;
     const res = await fetch(`/api/timetable/${editingSlot.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ teacherId, day, startTime, endTime, ...(roomId ? { roomId } : { venue }) }),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.error);
@@ -625,15 +631,37 @@ const handleEdit = async (data) => {
               <div>
                 <FieldLabel>Venue / Room</FieldLabel>
                 <div className="relative">
-                  <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    {...register("venue", { required: true })}
-                    placeholder="e.g. Lab 2, Main Hall"
-                    className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
-                      placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300
-                      focus:border-indigo-400 bg-white transition uppercase placeholder:normal-case"
-                  />
+                  <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+                  {venues.length > 0 ? (
+                    <>
+                      <select
+                        {...register("roomId", { required: true })}
+                        className="w-full pl-8 pr-8 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
+                          focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white transition appearance-none"
+                      >
+                        <option value="">Select a room…</option>
+                        {venues.map((block) => (
+                          <optgroup key={block.id} label={block.name}>
+                            {block.rooms.map((room) => (
+                              <option key={room.id} value={room.id}>
+                                {room.name}{room.capacity ? ` (Cap: ${room.capacity})` : ""}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    </>
+                  ) : (
+                    <input
+                      type="text"
+                      {...register("venue", { required: true })}
+                      placeholder="e.g. Lab 2, Main Hall"
+                      className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
+                        placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300
+                        focus:border-indigo-400 bg-white transition uppercase placeholder:normal-case"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -811,11 +839,33 @@ const handleEdit = async (data) => {
         <div>
           <FieldLabel>Venue / Room</FieldLabel>
           <div className="relative">
-            <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input type="text" {...registerEdit("venue", { required: true })} placeholder="e.g. Lab 2"
-              className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
-                placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300
-                focus:border-indigo-400 bg-white transition uppercase placeholder:normal-case" />
+            <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+            {venues.length > 0 ? (
+              <>
+                <select
+                  {...registerEdit("roomId", { required: true })}
+                  className="w-full pl-8 pr-8 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
+                    focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white transition appearance-none"
+                >
+                  <option value="">Select a room…</option>
+                  {venues.map((block) => (
+                    <optgroup key={block.id} label={block.name}>
+                      {block.rooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name}{room.capacity ? ` (Cap: ${room.capacity})` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </>
+            ) : (
+              <input type="text" {...registerEdit("venue", { required: true })} placeholder="e.g. Lab 2"
+                className="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700
+                  placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300
+                  focus:border-indigo-400 bg-white transition uppercase placeholder:normal-case" />
+            )}
           </div>
         </div>
 
@@ -881,7 +931,7 @@ const handleEdit = async (data) => {
     day:       slot.day,
     startTime: slot.startTime,
     endTime:   slot.endTime,
-    venue:     slot.venue,
+    roomId:    slot.roomId ?? "",
   });
 }}
                     onDelete={handleDelete}

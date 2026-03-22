@@ -31,47 +31,47 @@ enum AssessmentType {
 
 // --- CORE AUTH & USERS ---
 model User {
-  id             String          @id @default(cuid())
+  id             String   @id @default(cuid())
   name           String
-  email          String          @unique
-  hashedPassword String?         // Optional if using OAuth, but needed for email/password
-  role           Role            @default(STUDENT)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  email          String   @unique
+  hashedPassword String? // Optional if using OAuth, but needed for email/password
+  role           Role     @default(STUDENT)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Profile Relations
   studentProfile StudentProfile?
   teacherProfile TeacherProfile?
   parentProfile  ParentProfile?
-  
-  notifications  Notification[]
+
+  notifications Notification[]
 }
 
 // --- ROLE PROFILES ---
 model StudentProfile {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  regNumber       String   @unique
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  regNumber       String  @unique
   year            Int
   profilePhotoUrl String?
-  
-  courseId        String
-  course          Course   @relation(fields: [courseId], references: [id])
 
-  parents         ParentStudent[]
-  enrollments     UnitEnrollment[]
-  attendances     Attendance[]
-  submissions     Submission[]
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  parents     ParentStudent[]
+  enrollments UnitEnrollment[]
+  attendances Attendance[]
+  submissions Submission[]
 }
 
 model TeacherProfile {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  staffNumber    String   @unique
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  staffNumber    String  @unique
   department     String
   specialisation String?
 
@@ -81,9 +81,9 @@ model TeacherProfile {
 }
 
 model ParentProfile {
-  id       String   @id @default(cuid())
-  userId   String   @unique
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   children ParentStudent[]
 }
@@ -100,24 +100,23 @@ model ParentStudent {
 
 // --- ACADEMICS ---
 model Course {
-  id             String           @id @default(cuid())
-  name           String           @unique // e.g., 'Diploma in IT'
-  
+  id   String @id @default(cuid())
+  name String @unique // e.g., 'Diploma in IT'
+
   units          Unit[]
   students       StudentProfile[]
   timetableSlots TimetableSlot[]
 }
 
 model Unit {
-  id             String           @id @default(cuid())
-  code           String           @unique
-  name           String
-  
-  courseId       String
-  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
- 
-  teachers       TeacherProfile[]  
+  id   String @id @default(cuid())
+  code String @unique
+  name String
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  teachers TeacherProfile[]
 
   enrollments    UnitEnrollment[]
   lectures       Lecture[]
@@ -135,53 +134,81 @@ model UnitEnrollment {
   @@id([studentId, unitId])
 }
 
-// --- ATTENDANCE & TIMETABLE ---
+// Represents a physical building/block with GPS coordinates
+model Block {
+  id        String @id @default(cuid())
+  name      String // e.g., "Block A", "Science Complex"
+  latitude  Float
+  longitude Float
+  radius    Int    @default(50) // Allowance in meters, defaults to 50
+
+  rooms Room[]
+}
+
+// Represents a specific classroom inside a Block
+model Room {
+  id       String @id @default(cuid())
+  name     String // e.g., "A1", "Lab 3"
+  capacity Int? // Optional: Good for admin planning
+
+  blockId String
+  block   Block  @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  lectures       Lecture[]
+  timetableSlots TimetableSlot[]
+}
+
+// Updated Lecture Model
 model Lecture {
-  id          String         @id @default(cuid())
-  date        DateTime
-  time        String         
-  venue       String
-  
+  id   String   @id @default(cuid())
+  date DateTime
+  time String
+
+  // Replaced the simple string 'venue' with a relation to Room
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id])
+
+  otpCode      String?
+  otpExpiresAt DateTime?
+
   unitId      String
   unit        Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  
   teacherId   String
   teacher     TeacherProfile @relation(fields: [teacherId], references: [id])
-
   attendances Attendance[]
 }
 
 model Attendance {
-  id        String           @id @default(cuid())
-  status    AttendanceStatus @default(ABSENT)
-  reason    String?          // <-- Add this new optional field
-  
+  id     String           @id @default(cuid())
+  status AttendanceStatus @default(ABSENT)
+  reason String? // <-- Add this new optional field
+
   lectureId String
-  lecture   Lecture          @relation(fields: [lectureId], references: [id], onDelete: Cascade)
-  
+  lecture   Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
   studentId String
-  student   StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([lectureId, studentId]) // A student can only have one attendance record per lecture
 }
 
 model TimetableSlot {
-  id             String         @id @default(cuid())
-  
-  unitId         String
-  unit           Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
 
-  courseId  String
-  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  teacherId      String
-  teacher        TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
-  day            String         // e.g., "MONDAY"
-  startTime      String         // e.g., "08:00" (Using 24hr format makes time math easy)
-  endTime        String         // e.g., "10:00"
-  venue          String
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  day       String // e.g., "MONDAY"
+  startTime String // e.g., "08:00" (Using 24hr format makes time math easy)
+  endTime   String // e.g., "10:00"
+  roomId    String
+  room      Room   @relation(fields: [roomId], references: [id])
 }
 
 // --- ASSESSMENTS & RESULTS ---
@@ -190,29 +217,29 @@ model Assessment {
   type         AssessmentType
   title        String
   instructions String?
-  fileUrl      String?        // Cloudinary URL
+  fileUrl      String? // Cloudinary URL
   dueDate      DateTime
   maxMarks     Float
 
-  unitId       String
-  unit         Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
-  submissions  Submission[]
+  submissions Submission[]
 }
 
 model Submission {
-  id           String         @id @default(cuid())
-  fileUrl      String?        // Cloudinary URL for student upload
-  textAnswer   String?        // In case of text submission
-  submittedAt  DateTime       @default(now())
-  marks        Float?         // Null means not yet graded
-  feedback     String?
+  id          String   @id @default(cuid())
+  fileUrl     String? // Cloudinary URL for student upload
+  textAnswer  String? // In case of text submission
+  submittedAt DateTime @default(now())
+  marks       Float? // Null means not yet graded
+  feedback    String?
 
   assessmentId String
-  assessment   Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  studentId    String
-  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([assessmentId, studentId])
 }
@@ -220,12 +247,12 @@ model Submission {
 // --- SYSTEM UTILS ---
 model Notification {
   id        String   @id @default(cuid())
-  userId    String   // The user receiving the alert
+  userId    String // The user receiving the alert
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   message   String
   isRead    Boolean  @default(false)
-  link      String?  // Optional URL to redirect the user when clicked
+  link      String? // Optional URL to redirect the user when clicked
   createdAt DateTime @default(now())
 }
 
@@ -234,7 +261,7 @@ model InviteToken {
   token     String   @unique
   email     String
   role      Role     @default(PARENT)
-  studentId String?  // The ID of the student who generated the invite
+  studentId String? // The ID of the student who generated the invite
   expires   DateTime
   createdAt DateTime @default(now())
 }

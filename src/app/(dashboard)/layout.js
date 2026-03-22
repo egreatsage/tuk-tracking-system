@@ -53,6 +53,7 @@ export default function DashboardLayout({ children }) {
       { name: "Teachers", href: "/superadmin/teachers", icon: Users },
       { name: "Students", href: "/superadmin/students", icon: Users },
       { name: "Timetable", href: "/superadmin/timetable", icon: Calendar },
+      { name: "Venues", href: "/superadmin/venues", icon: LayoutDashboard },
     ],
     teacher: [
       { name: "Dashboard", href: "/teacher", icon: LayoutDashboard },

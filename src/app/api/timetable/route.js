@@ -13,6 +13,7 @@ export async function GET(request) {
       include: {
         unit:    { include: { course: true } },
         teacher: { include: { user: true   } },
+        room:    { include: { block: true  } }, // <--- Fetch Room & Block info for UI
       },
       orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
     });
@@ -24,68 +25,51 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    // ── Parse body FIRST — everything depends on this ────────────────────────
     const body = await request.json();
-    const { courseId, unitId, teacherId, day, startTime, endTime, venue } = body;
+    // ── Swapped 'venue' string for 'roomId' ──────────────────────────────────
+    const { courseId, unitId, teacherId, day, startTime, endTime, roomId } = body;
 
-    // ── 0. All fields present ────────────────────────────────────────────────
-    if (!courseId || !unitId || !teacherId || !day || !startTime || !endTime || !venue) {
-      return NextResponse.json({ error: 'All fields are required.' }, { status: 400 });
+    if (!courseId || !unitId || !teacherId || !day || !startTime || !endTime || !roomId) {
+      return NextResponse.json({ error: 'All fields, including a Room, are required.' }, { status: 400 });
     }
 
-    // ── 0a. Normalise day casing ─────────────────────────────────────────────
     const normalizedDay = day.toUpperCase();
 
-    // ── 0b. Time format validation ───────────────────────────────────────────
     if (!TIME_REGEX.test(startTime) || !TIME_REGEX.test(endTime)) {
-      return NextResponse.json(
-        { error: 'Times must be in HH:MM 24-hour format.' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Times must be in HH:MM 24-hour format.' }, { status: 400 });
     }
 
-    // ── Check 1: Time sanity ─────────────────────────────────────────────────
     if (startTime >= endTime) {
-      return NextResponse.json(
-        { error: 'End time must be after start time.' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'End time must be after start time.' }, { status: 400 });
     }
 
-    // ── Check 2: Working hours / valid day ───────────────────────────────────
     if (!VALID_DAYS.includes(normalizedDay)) {
-      return NextResponse.json(
-        { error: `Invalid day "${day}". Must be a weekday (Monday – Friday).` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: `Invalid day "${day}". Must be a weekday (Monday – Friday).` }, { status: 400 });
     }
+
     if (startTime < START_OF_DAY || endTime > END_OF_DAY) {
-      return NextResponse.json(
-        { error: `Slots must fall between ${START_OF_DAY} and ${END_OF_DAY}.` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: `Slots must fall between ${START_OF_DAY} and ${END_OF_DAY}.` }, { status: 400 });
     }
 
-    // ── Check 3a: Course exists ──────────────────────────────────────────────
     const courseExists = await prisma.course.findUnique({ where: { id: courseId } });
-    if (!courseExists) {
-      return NextResponse.json({ error: 'Course not found.' }, { status: 404 });
-    }
+    if (!courseExists) return NextResponse.json({ error: 'Course not found.' }, { status: 404 });
 
-    // ── Check 3b: Unit belongs to the declared course ────────────────────────
     const requestedUnit = await prisma.unit.findUnique({ where: { id: unitId } });
-    if (!requestedUnit) {
-      return NextResponse.json({ error: 'Unit not found.' }, { status: 404 });
-    }
+    if (!requestedUnit) return NextResponse.json({ error: 'Unit not found.' }, { status: 404 });
+    
     if (requestedUnit.courseId !== courseId) {
-      return NextResponse.json(
-        { error: `Integrity error: unit "${requestedUnit.code}" does not belong to the selected course.` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: `Integrity error: unit "${requestedUnit.code}" does not belong to the selected course.` }, { status: 400 });
     }
 
-    // ── Fetch only truly overlapping slots (all remaining checks) ────────────
-    //    Overlap condition: startA < endB  AND  endA > startB
+    // ── Verify the Room actually exists ──────────────────────────────────────
+    const requestedRoom = await prisma.room.findUnique({ 
+      where: { id: roomId },
+      include: { block: true }
+    });
+    if (!requestedRoom) return NextResponse.json({ error: 'Room not found.' }, { status: 404 });
+
+
+    // ── Fetch overlapping slots ──────────────────────────────────────────────
     const overlapping = await prisma.timetableSlot.findMany({
       where: {
         day: normalizedDay,
@@ -95,15 +79,16 @@ export async function POST(request) {
       include: {
         unit:    true,
         teacher: { include: { user: true } },
+        room:    true, // <--- Include room to safely check conflicts
       },
     });
 
     for (const slot of overlapping) {
-      // Check 4: Venue double-booking ────────────────────────────────────────
-      if (slot.venue.toLowerCase() === venue.toLowerCase()) {
+      // Check 4: Venue double-booking (Now strictly matching UUIDs) ───────────
+      if (slot.roomId === roomId) {
         return NextResponse.json(
           {
-            error: `Venue conflict: "${venue}" is already booked for ${slot.unit.code} (${slot.startTime}–${slot.endTime}).`,
+            error: `Venue conflict: ${requestedRoom.name} is already booked for ${slot.unit.code} (${slot.startTime}–${slot.endTime}).`,
           },
           { status: 400 },
         );
@@ -129,7 +114,7 @@ export async function POST(request) {
         );
       }
 
-      // Check 7: Duplicate slot (same unit scheduled again at the same time) ─
+      // Check 7: Duplicate slot ───────────────────────────────────────────────
       if (slot.unitId === unitId) {
         return NextResponse.json(
           {
@@ -140,7 +125,7 @@ export async function POST(request) {
       }
     }
 
-    // ── Check 8: Cross-course student clash (shared / elective units) ────────
+    // Check 8: Cross-course student clash ─────────────────────────────────────
     const overlappingUnitIds = overlapping.map((s) => s.unitId);
 
     if (overlappingUnitIds.length > 0) {
@@ -175,9 +160,9 @@ export async function POST(request) {
       }
     }
 
-    // ── All checks passed — persist ──────────────────────────────────────────
+    // ── All checks passed — persist with roomId ──────────────────────────────
     const newSlot = await prisma.timetableSlot.create({
-      data: { courseId, unitId, teacherId, day: normalizedDay, startTime, endTime, venue },
+      data: { courseId, unitId, teacherId, day: normalizedDay, startTime, endTime, roomId },
     });
 
     return NextResponse.json(newSlot, { status: 201 });

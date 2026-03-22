@@ -22,6 +22,7 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: "Failed to remove class from timetable" }, { status: 500 });
   }
 }
+
 export async function PATCH(request, { params }) {
   try {
     const { id } = await params;
@@ -30,14 +31,17 @@ export async function PATCH(request, { params }) {
     }
 
     const body = await request.json();
-    const { teacherId, day, startTime, endTime, venue } = body;
-    console.log('[PATCH received]', { id, teacherId, day, startTime, endTime, venue });
+    
+    // 1. Swapped 'venue' for 'roomId'
+    const { teacherId, day, startTime, endTime, roomId } = body;
+    console.log('[PATCH received]', { id, teacherId, day, startTime, endTime, roomId });
 
     const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
     const VALID_DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY'];
 
-    if (!teacherId || !day || !startTime || !endTime || !venue) {
-      return NextResponse.json({ error: 'All fields are required.' }, { status: 400 });
+    // 2. Ensure roomId is provided
+    if (!teacherId || !day || !startTime || !endTime || !roomId) {
+      return NextResponse.json({ error: 'All fields, including a Room, are required.' }, { status: 400 });
     }
     if (!TIME_REGEX.test(startTime) || !TIME_REGEX.test(endTime)) {
       return NextResponse.json({ error: 'Times must be in HH:MM format.' }, { status: 400 });
@@ -51,13 +55,21 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: 'End time must be after start time.' }, { status: 400 });
     }
 
+    // 3. Verify the Room actually exists
+    const requestedRoom = await prisma.room.findUnique({ 
+      where: { id: roomId }
+    });
+    if (!requestedRoom) {
+      return NextResponse.json({ error: 'Room not found.' }, { status: 404 });
+    }
+
     // Get the existing slot so we know its unitId/courseId for conflict checks
     const existing = await prisma.timetableSlot.findUnique({ where: { id }, include: { unit: true } });
     if (!existing) {
       return NextResponse.json({ error: 'Slot not found.' }, { status: 404 });
     }
 
-    // Check overlapping slots — same logic as POST, but exclude the current slot being edited
+    // Check overlapping slots — exclude the current slot being edited
     const overlapping = await prisma.timetableSlot.findMany({
       where: {
         day: normalizedDay,
@@ -65,20 +77,14 @@ export async function PATCH(request, { params }) {
         startTime: { lt: endTime },
         endTime:   { gt: startTime },
       },
-      include: { unit: true, teacher: { include: { user: true } } },
+      // 4. Include room to handle conflicts correctly
+      include: { unit: true, room: true, teacher: { include: { user: true } } }, 
     });
 
-    console.log('[overlapping slots]', overlapping.map(s => ({
-  id: s.id,
-  unitCode: s.unit.code,
-  teacherId: s.teacherId,
-  startTime: s.startTime,
-  endTime: s.endTime,
-})));
-
     for (const slot of overlapping) {
-      if (slot.venue.toLowerCase() === venue.toLowerCase()) {
-        return NextResponse.json({ error: `Venue conflict: "${venue}" is already booked for ${slot.unit.code} (${slot.startTime}–${slot.endTime}).` }, { status: 400 });
+      // 5. Check venue conflicts strictly by UUID instead of string comparison
+      if (slot.roomId === roomId) {
+        return NextResponse.json({ error: `Venue conflict: "${requestedRoom.name}" is already booked for ${slot.unit.code} (${slot.startTime}–${slot.endTime}).` }, { status: 400 });
       }
       if (slot.teacherId === teacherId) {
         return NextResponse.json({ error: `Teacher conflict: ${slot.teacher.user.name} is already teaching at this time.` }, { status: 400 });
@@ -88,9 +94,10 @@ export async function PATCH(request, { params }) {
       }
     }
 
+    // 6. Save the new roomId to the database
     const updated = await prisma.timetableSlot.update({
       where: { id },
-      data: { teacherId, day: normalizedDay, startTime, endTime, venue },
+      data: { teacherId, day: normalizedDay, startTime, endTime, roomId },
     });
 
     return NextResponse.json(updated, { status: 200 });
