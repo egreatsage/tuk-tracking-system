@@ -18,6 +18,7 @@ import {
 // Install: npm install jspdf jspdf-autotable
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import LiveAttendanceCounter from "@/components/LiveAttendanceCounter";
 
 // ---------------------------------------------------------------------------
 // PDF EXPORT
@@ -185,7 +186,9 @@ function StudentTable({ attendances }) {
   });
 
   return (
+    
     <div className="mt-4">
+      <LiveAttendanceCounter/>
       <div className="flex flex-col sm:flex-row gap-2 mb-3">
         <input
           type="text"

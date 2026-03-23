@@ -19,8 +19,8 @@ export async function GET(req) {
       return NextResponse.json({ error: "Student profile not found" }, { status: 404 });
     }
 
-    // Fetch units the student is enrolled in
-    const enrollments = await prisma.enrollment.findMany({
+    // FIX 1: Change prisma.enrollment to prisma.unitEnrollment
+    const enrollments = await prisma.unitEnrollment.findMany({
       where: { studentId: studentProfile.id },
       include: { unit: true },
     });
@@ -37,7 +37,17 @@ export async function GET(req) {
             unitId: true,
             date: true,
             time: true,
-            venue: true,
+            // FIX 2: Replace 'venue: true' with the 'room' relation since venue was removed
+            room: {
+                select: {
+                    name: true,
+                    block: {
+                        select: {
+                            name: true
+                        }
+                    }
+                }
+            },
           },
         },
       },
