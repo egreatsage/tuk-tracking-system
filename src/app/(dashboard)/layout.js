@@ -1,7 +1,7 @@
 // src/app/(dashboard)/layout.js
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession,signOut } from "next-auth/react";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,7 +9,8 @@ import { useState, useEffect } from "react";
 import {
   BookOpen, Users, Calendar, LayoutDashboard,
   ClipboardCheck, FileText, UserCircle, Activity, X, Menu,
-  ScanLine
+  ScanLine,
+  LogOut
 } from "lucide-react";
 
 export default function DashboardLayout({ children }) {
@@ -131,6 +132,14 @@ export default function DashboardLayout({ children }) {
           );
         })}
       </nav>
+      <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="flex pl-6 py-4 items-center gap-1.5 text-sm text-red-600 hover:text-red-800 font-medium transition flex-shrink-0"
+                title="Logout"
+              >
+                <LogOut size={17} />
+                <span className=" sm:inline">Logout</span>
+              </button>
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">

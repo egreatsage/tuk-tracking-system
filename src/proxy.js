@@ -26,7 +26,12 @@ export default auth((req) => {
 
   // 3. Protect all other routes
   if (!isLoggedIn && !isAuthRoute) {
-    return NextResponse.redirect(new URL("/login", nextUrl));
+    const callbackUrl = nextUrl.pathname + nextUrl.search;
+    const loginUrl = new URL("/login", nextUrl);
+    loginUrl.searchParams.set("callbackUrl", callbackUrl);
+
+    return NextResponse.redirect(loginUrl)
+    
   }
 
   // 4. Role-based Bouncer

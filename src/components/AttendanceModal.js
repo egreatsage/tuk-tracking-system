@@ -101,6 +101,7 @@ export default function AttendanceModal({ slot, onClose }) {
           date: isoDate,
           time: slot.startTime,
           venue: slot.venue,
+          timetableSlotId: slot.id, // ✅ lets the API resolve the required roomId
           attendanceData,
         }),
       });
