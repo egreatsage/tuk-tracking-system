@@ -57,5 +57,5 @@ export default auth((req) => {
 
 // 5. Configure the matcher to run proxy on specific paths
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.svg$).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|login|invite).*)'],
 };

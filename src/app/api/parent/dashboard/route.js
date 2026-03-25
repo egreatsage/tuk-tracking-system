@@ -1,4 +1,3 @@
-// src/app/api/parent/dashboard/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
@@ -10,7 +9,6 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch the parent profile and all nested child data
     const parentProfile = await prisma.parentProfile.findUnique({
       where: { userId: session.user.id },
       include: {
@@ -20,7 +18,7 @@ export async function GET(request) {
               include: {
                 user: true,
                 course: true,
-                // Fetch recent attendance records
+                // Fetch ALL attendances for statistics and history
                 attendances: {
                   include: {
                     lecture: { include: { unit: true } }
@@ -28,17 +26,29 @@ export async function GET(request) {
                   orderBy: [
                     { lecture: { date: 'desc' } },
                     { lecture: { time: 'desc' } }
-                  ],
-                  take: 15 // Limit to recent 15 to keep payload light
+                  ]
                 },
-                // Fetch ONLY graded submissions (parents don't need to see pending work)
+                // Fetch ALL submissions (completed assignments)
                 submissions: {
-                  where: { marks: { not: null } },
                   include: {
                     assessment: { include: { unit: true } }
                   },
-                  orderBy: { submittedAt: 'desc' },
-                  take: 10
+                  orderBy: { submittedAt: 'desc' }
+                },
+                // Fetch ENROLLMENTS to get Units, Teachers, and all Assessments
+                enrollments: {
+                  include: {
+                    unit: {
+                      include: {
+                        teachers: {
+                          include: {
+                            user: { select: { name: true, email: true } }
+                          }
+                        },
+                        assessments: true // To calculate pending assignments
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -51,7 +61,6 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Parent profile not found' }, { status: 404 });
     }
 
-    // Map over the join table to return a clean array of students
     const childrenData = parentProfile.children.map(relation => relation.student);
 
     return NextResponse.json(childrenData, { status: 200 });

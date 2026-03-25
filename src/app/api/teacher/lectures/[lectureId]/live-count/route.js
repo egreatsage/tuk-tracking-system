@@ -9,7 +9,7 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { lectureId } = params;
+    const { lectureId } = await params;
 
     // 1. Get the lecture to find out which unit it belongs to
     const lecture = await prisma.lecture.findUnique({
